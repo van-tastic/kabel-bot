@@ -52,7 +52,18 @@ class Kabel:
         self._iz_min = None
         self._areal = None              # Kabeltverrsnitt
 
-    def _recalc(*args):
+    def __calc(self):
+        """
+        Runs the methods in the correct order for results
+        """
+        self._i_b()
+        self._i_n()
+        self._i_2()
+        self._korreksjons_faktor() 
+        self._i_z()
+        self._bnz()
+
+    def __recalc(*args):
         """
         Denne skal kunne justere hvem metoder som kalles for å justere algoritmen
         basert på hvilke argumenter som (ikke default) gis av input
@@ -71,7 +82,7 @@ class Kabel:
         pass
 
 
-    def i_b(self):  #P, U=230, cosfi=1, fas=2)
+    def _i_b(self):  #P, U=230, cosfi=1, fas=2)
         # DONE: OOP-ready
         # TODO: Make real documentation
         #       Write error handeling: What if self.faser is nonsense? Like -1 or 8
@@ -91,7 +102,7 @@ class Kabel:
          else:
              self._ib = self.power/(self.volt * self.cosfi)
 
-    def i_n(self):
+    def _i_n(self):
         # DONE: OOP-ready
         # TODO: Write proper documentation
         #       Write error handeling
@@ -100,6 +111,14 @@ class Kabel:
         Denne metoden finner self._in (Nominell strøm) og self._i2 gjennom i2 koeffisienten i 
         dictionaryen; Kabel.karakter_i2 eller i den custome koeffisienten i self.i2.
         """
+        if self.vern is None:
+            # Selects the first value in Kabel.vern that is greater than self._ib
+            self._in = Kabel.vern[np.argmax(Kabel.vern > self._ib)]
+        else:
+            self._in = self.vern
+
+    
+    def _i_2(self):
         # Case if i2 is not given, we will select from the standars in MHB.
         if self.i2 == None:
             # elif self.kar == "effektbryter" or "Effektbryter" or "Eff":
@@ -113,16 +132,9 @@ class Kabel:
         else:
             i2_koeff = self.i2
 
-        if self.vern is None:
-            # Selects the first value in Kabel.vern that is greater than self._ib
-            self._in = Kabel.vern[np.argmax(Kabel.vern > self._ib)]
-        else:
-            self._in = self.vern
-
         self._i2 = self._in * i2_koeff
+        
 
-
-#    def kfaktor(RIM, n=1, temp=25, arr=None):
     def _korreksjons_faktor(self):
         # DONE: OOP-ready
         # Vil hente data ut ifra csv filer
@@ -164,8 +176,7 @@ class Kabel:
             self._kn = Kabel.kfaktor_nf[0, self.n-1]/100
 
     
-    # def iz(In, key="A2",faser=2, nf=1, temp=25, arr=None):
-    def i_z(self):
+    def _i_z(self):
         # DONE: OOP-ready
         # TODO: Write proper documentation
         #       Write error handeling
@@ -174,8 +185,6 @@ class Kabel:
         Funkjonene tar en av referanseinstallasjonsmetodene fra tabell 6.2b
         i MHB s.207 og kryssreferer verdien med Arealet fra første kollone
         """
-        self._korreksjons_faktor() 
-     
         faser = self.faser-2
         self._iz_min = self._in/(self._kt * self._kn)
         cross_index = lambda RIM, iz_min, faser: np.argmax(Kabel.rim[RIM][:,faser] >= iz_min)
@@ -185,9 +194,6 @@ class Kabel:
         self._areal = Kabel.areal[index] 
 
 
-
-
-#    def bnz(Ib, In, Iz, I2, krav="B"):
     def _bnz(self):
         # DONE: OOP-ready
         # TODO: Write proper documentation
@@ -224,7 +230,7 @@ class Kabel:
         """
         Printer Kabler og Vern
         """
-        self._bnz()
+        self.__calc()
         string = ("=====================================================\n"
             f"En kurs med {self.power}W total effekt, {self.faser}-fas og {self.volt}V\n"
             f"Ib = {self._ib:.2f}A\n"
